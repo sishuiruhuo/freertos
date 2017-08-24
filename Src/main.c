@@ -52,6 +52,7 @@
 
 /* USER CODE BEGIN Includes */
 #include "oled.h"
+#include "gprs.h"
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
@@ -63,10 +64,15 @@ DMA_HandleTypeDef hdma_usart2_rx;
 DMA_HandleTypeDef hdma_usart2_tx;
 
 osThreadId defaultTaskHandle;
+osMessageQId myQueue01Handle;
+osTimerId myTimer01Handle;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+#define MAXSIZE 100
 uint8_t arev_zigbee[1];
+uint8_t arev_mqtt[1];
+uint8_t RX_DATA[MAXSIZE]={0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,6 +82,7 @@ static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void const * argument);
+void Callback01(void const * argument);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -118,7 +125,11 @@ int main(void)
   /* USER CODE BEGIN 2 */
 //	u8 test1[10]="haoren\r\n";
 	OLED_Init();
+	init_gprs();
 	HAL_UART_Receive_DMA(&huart2, arev_zigbee, 1);
+	HAL_UART_Receive_DMA(&huart1,RX_DATA,MAXSIZE);      
+	__HAL_UART_ENABLE_IT(&huart1,UART_IT_IDLE);
+  //HAL_UART_Transmit_DMA(&huart1 , (u8*)"AT\r\n" ,4);
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -128,6 +139,11 @@ int main(void)
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
+
+  /* Create the timer(s) */
+  /* definition and creation of myTimer01 */
+  osTimerDef(myTimer01, Callback01);
+  myTimer01Handle = osTimerCreate(osTimer(myTimer01), osTimerPeriodic, NULL);
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
@@ -142,8 +158,14 @@ int main(void)
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
+  /* Create the queue(s) */
+  /* definition and creation of myQueue01 */
+  osMessageQDef(myQueue01, 16, uint16_t);
+  myQueue01Handle = osMessageCreate(osMessageQ(myQueue01), NULL);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+	osTimerStart(myTimer01Handle,1000);
   /* USER CODE END RTOS_QUEUES */
  
 
@@ -153,6 +175,7 @@ int main(void)
   /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
+	
   /* USER CODE BEGIN WHILE */
   while (1)
   {
@@ -289,9 +312,13 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13|oled_dc_Pin|oled_res_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, Gprs_Rest_Pin|Gprs_En_Power_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(oled_cs_GPIO_Port, oled_cs_Pin, GPIO_PIN_SET);
@@ -304,6 +331,24 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Net_Connet_State_Pin */
+  GPIO_InitStruct.Pin = Net_Connet_State_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(Net_Connet_State_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : Gprs_Rest_Pin Gprs_En_Power_Pin */
+  GPIO_InitStruct.Pin = Gprs_Rest_Pin|Gprs_En_Power_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Net_Led_Pin */
+  GPIO_InitStruct.Pin = Net_Led_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(Net_Led_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : oled_din_Pin oled_clk_Pin */
   GPIO_InitStruct.Pin = oled_din_Pin|oled_clk_Pin;
@@ -325,11 +370,11 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-		//HAL_UART_Transmit(&huart2 ,(u8*)"haoren\r\n",8,100);
-		HAL_UART_Transmit_DMA(&huart2 , (u8*)"12345678\r\n" ,10);
-		//HAL_Delay(1000);
-		OLED_ShowString(0,0,(u8 *)"1234567890");
+//		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+//		//HAL_UART_Transmit(&huart2 ,(u8*)"haoren\r\n",8,100);
+//		HAL_UART_Transmit_DMA(&huart2 , (u8*)"12345678\r\n" ,10);
+//		//HAL_Delay(1000);
+//		OLED_ShowString(0,0,(u8 *)"1234567890");
 		//HAL_UART_Tra
 		
 		//HAL_UART_Transmit_DMA(&huart2 , (u8*)"haoren\r\n" , 8);
@@ -338,6 +383,15 @@ void StartDefaultTask(void const * argument)
     osDelay(1000);
   }
   /* USER CODE END 5 */ 
+}
+
+/* Callback01 function */
+void Callback01(void const * argument)
+{
+  /* USER CODE BEGIN Callback01 */
+  OLED_ShowString(0,0,(u8 *)"12345678");
+	//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+  /* USER CODE END Callback01 */
 }
 
 /**

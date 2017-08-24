@@ -37,7 +37,10 @@
 #include "cmsis_os.h"
 
 /* USER CODE BEGIN 0 */
-
+#define __HAL_DMA_SET_COUNTER(__HANDLE__, __COUNTER__) ((__HANDLE__)->Instance->CNDTR = (uint16_t)(__COUNTER__))
+#ifndef MAXSIZE
+#define MAXSIZE 100
+#endif
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -226,7 +229,28 @@ void DMA1_Channel7_IRQHandler(void)
 void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
-
+	uint16_t RX_NUM=0;
+	uint8_t tmp1,tmp2;
+	tmp1 = __HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE);   //空闲中断中将已收字节数取出后，停止DMA
+  tmp2 = __HAL_UART_GET_IT_SOURCE(&huart1, UART_IT_IDLE);
+	
+   if((tmp1 != RESET) && (tmp2 != RESET))
+  { 
+		
+		
+		__HAL_UART_CLEAR_IDLEFLAG(&huart1);
+		
+		
+   __HAL_DMA_DISABLE(&hdma_usart1_rx);
+	
+	RX_NUM=(MAXSIZE)-(hdma_usart1_rx.Instance->CNDTR);
+	
+	__HAL_DMA_SET_COUNTER(&hdma_usart1_rx,MAXSIZE);
+	__HAL_DMA_ENABLE(&hdma_usart1_rx);
+	huart1.RxState=HAL_UART_STATE_READY;
+		
+		
+		 }
   /* USER CODE END USART1_IRQn 0 */
   HAL_UART_IRQHandler(&huart1);
   /* USER CODE BEGIN USART1_IRQn 1 */

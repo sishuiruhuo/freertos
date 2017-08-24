@@ -56,6 +56,14 @@
 
 /* Private define ------------------------------------------------------------*/
 
+#define Net_Connet_State_Pin GPIO_PIN_2
+#define Net_Connet_State_GPIO_Port GPIOB
+#define Gprs_Rest_Pin GPIO_PIN_12
+#define Gprs_Rest_GPIO_Port GPIOB
+#define Gprs_En_Power_Pin GPIO_PIN_13
+#define Gprs_En_Power_GPIO_Port GPIOB
+#define Net_Led_Pin GPIO_PIN_14
+#define Net_Led_GPIO_Port GPIOB
 #define oled_cs_Pin GPIO_PIN_6
 #define oled_cs_GPIO_Port GPIOC
 #define oled_dc_Pin GPIO_PIN_7
